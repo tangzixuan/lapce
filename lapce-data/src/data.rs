@@ -4581,18 +4581,58 @@ impl Display for SshHost {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct TailscaleHost {
+    pub user: Option<String>,
+    pub host: String,
+}
+
+impl TailscaleHost {
+    pub fn from_string(s: &str) -> Self {
+        let mut whole_splits = s.split(':');
+        let splits = whole_splits
+            .next()
+            .unwrap()
+            .split('@')
+            .collect::<Vec<&str>>();
+        let mut splits = splits.iter().rev();
+        let host = splits.next().unwrap().to_string();
+        let user = splits.next().map(|s| s.to_string());
+        Self { user, host }
+    }
+
+    pub fn user_host(&self) -> String {
+        if let Some(user) = self.user.as_ref() {
+            format!("{user}@{}", self.host)
+        } else {
+            self.host.clone()
+        }
+    }
+}
+
+impl Display for TailscaleHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(user) = self.user.as_ref() {
+            write!(f, "{user}@")?;
+        }
+        write!(f, "{}", self.host)?;
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(SshHost),
     RemoteWSL,
+    RemoteTS(TailscaleHost),
 }
 
 impl LapceWorkspaceType {
     pub fn is_remote(&self) -> bool {
         matches!(
             self,
-            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
+            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL | LapceWorkspaceType::RemoteTS(_)
         )
     }
 }
@@ -4605,6 +4645,9 @@ impl std::fmt::Display for LapceWorkspaceType {
                 write!(f, "ssh://{ssh}")
             }
             LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
+            LapceWorkspaceType::RemoteTS(conn) => {
+                write!(f, "tailscale://{conn}")
+            }
         }
     }
 }
